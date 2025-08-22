@@ -25,12 +25,27 @@ type State =
 and LightState = On | Off
 and NbOfUseLeft = int
 
-let decide (state: State) (cmd: Commands) : State = 
-    match cmd, state with
-    | TurnOn, Working (Off, 0) -> Broken
-    | TurnOn, Working (Off, nbOfUseRemaining) -> Working (On, nbOfUseRemaining - 1)
-    | TurnOff, Working (On, nbOfUseRemaining) -> Working (Off, nbOfUseRemaining)
+type Events = 
+    | TurnedOn
+    | TurnedOff
+    | Broke
+
+let evolve (state: State) (event: Events) : State = 
+    match state, event with
+    | Working (_, remaining), TurnedOff -> Working (Off, remaining)
+    | Working (_, remaining), TurnedOn -> Working (On, remaining - 1)
+    | _, Broke -> Broken
     | _ -> state
+
+let decide (state: State) (cmd: Commands) : State = 
+    let events =
+        match cmd, state with
+        | TurnOn, Working (Off, 0) -> [Broke]
+        | TurnOn, Working (Off, _) -> [TurnedOn]
+        | TurnOff, Working (On, _) -> [TurnedOff]
+        | _ -> []
+    
+    List.fold evolve state events
 
 // -------------------------
 // Domain (imperative shell)
@@ -42,9 +57,9 @@ type Repository = {
 }
 
 let execute (repository: Repository) (cmd: Commands) : unit =
-    let state = repository.Load ()
-    let newState = decide state cmd
-    repository.Save newState
+    let state = repository.Load () // Impure
+    let newState = decide state cmd // Pure
+    repository.Save newState // Impure
 
 // --------------
 // Infrastructure 
