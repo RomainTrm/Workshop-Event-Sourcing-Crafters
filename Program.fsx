@@ -12,14 +12,24 @@
 //
 // ---------------------------------------------------------------------
 
+// ----------
+// Domain
+// ----------
 
+type Commands = TurnOn | TurnOff
 
+type State = 
+    | Working of LightState * NbOfUseLeft
+    | Broken
+and LightState = On | Off
+and NbOfUseLeft = int
 
-
-
-
-
-
+let decide (state: State) (cmd: Commands) : State = 
+    match cmd, state with
+    | TurnOn, Working (Off, 0) -> Broken
+    | TurnOn, Working (Off, nbOfUseRemaining) -> Working (On, nbOfUseRemaining - 1)
+    | TurnOff, Working (On, nbOfUseRemaining) -> Working (Off, nbOfUseRemaining)
+    | _ -> state
 
 
 
