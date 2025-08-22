@@ -12,9 +12,10 @@
 //
 // ---------------------------------------------------------------------
 
-// ----------
-// Domain
-// ----------
+
+// ------------------------
+// Domain (functional core)
+// ------------------------
 
 type Commands = TurnOn | TurnOff
 
@@ -31,17 +32,23 @@ let decide (state: State) (cmd: Commands) : State =
     | TurnOff, Working (On, nbOfUseRemaining) -> Working (Off, nbOfUseRemaining)
     | _ -> state
 
+// -------------------------
+// Domain (imperative shell)
+// -------------------------
 
+type Repository = {
+    Load: unit -> State
+    Save: State -> unit
+}
 
+let execute (repository: Repository) (cmd: Commands) : unit =
+    let state = repository.Load ()
+    let newState = decide state cmd
+    repository.Save newState
 
-
-
-
-
-
-
-
-
+// --------------
+// Infrastructure 
+// --------------
 
 #r "nuget: FSharp.SystemTextJson,1.4.36"
 
@@ -51,5 +58,32 @@ open System.Text.Json.Serialization
 
 let jsonOptions = JsonFSharpOptions.Default().ToJsonSerializerOptions()
 
+let deserializeState (json: string) : State = 
+    match json with
+    | "" -> Working (Off, 3)
+    | json -> JsonSerializer.Deserialize<State> (json, jsonOptions)
+
+let serializeState (state: State) : string = 
+    JsonSerializer.Serialize (state, jsonOptions)
+
+let loadState (filePath: string) : State = 
+    File.ReadAllText filePath
+    |> deserializeState
+
+let saveState (filePath: string) (state: State) : unit =
+    File.WriteAllText(filePath, serializeState state)
+
+// -----------
+// Application
+// -----------
+
 let [<Literal>] StateFile = "State"
 let [<Literal>] EventsFile = "Events"
+
+let repository : Repository = {
+    Load = fun () -> loadState StateFile
+    Save = fun state -> saveState StateFile state
+}
+
+let turnOff () = execute repository TurnOff
+let turnOn () = execute repository TurnOn
