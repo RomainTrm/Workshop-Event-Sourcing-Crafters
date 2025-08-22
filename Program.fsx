@@ -50,17 +50,16 @@ let decide (state: State) (cmd: Commands) : Events list =
 // Domain (imperative shell)
 // -------------------------
 
-type Repository = {
+type EventsStore = {
     Load: unit -> Events list
-    Save: State * Events list -> unit
+    Save: Events list -> unit
 }
 
-let execute (repository: Repository) (cmd: Commands) : unit =
-    let history = repository.Load () // Impure
+let execute (eventsStore: EventsStore) (cmd: Commands) : unit =
+    let history = eventsStore.Load () // Impure
     let state = List.fold evolve initialState history // Pure
     let events = decide state cmd // Pure
-    let newState = List.fold evolve state events // Pure
-    repository.Save (newState, events) // Impure
+    eventsStore.Save events // Impure
 
 // --------------
 // Infrastructure 
@@ -110,12 +109,10 @@ let saveEvents (filePath: string) (events: Events list) : unit =
 let [<Literal>] StateFile = "State"
 let [<Literal>] EventsFile = "Events"
 
-let repository : Repository = {
+let eventsStore : EventsStore = {
     Load = fun () -> loadEvents EventsFile
-    Save = fun (state, events) -> 
-        saveState StateFile state
-        saveEvents EventsFile events
+    Save = fun events -> saveEvents EventsFile events
 }
 
-let turnOff () = execute repository TurnOff
-let turnOn () = execute repository TurnOn
+let turnOff () = execute eventsStore TurnOff
+let turnOn () = execute eventsStore TurnOn
