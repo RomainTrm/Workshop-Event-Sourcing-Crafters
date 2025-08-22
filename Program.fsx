@@ -50,14 +50,14 @@ let decide (state: State) (cmd: Commands) : Events list =
 
 type Repository = {
     Load: unit -> State
-    Save: State -> unit
+    Save: State * Events list -> unit
 }
 
 let execute (repository: Repository) (cmd: Commands) : unit =
     let state = repository.Load () // Impure
     let events = decide state cmd // Pure
     let newState = List.fold evolve state events // Pure
-    repository.Save newState // Impure
+    repository.Save (newState, events) // Impure
 
 // --------------
 // Infrastructure 
@@ -86,6 +86,12 @@ let loadState (filePath: string) : State =
 let saveState (filePath: string) (state: State) : unit =
     File.WriteAllText(filePath, serializeState state)
 
+let serializeEvent (evt: Events) : string = 
+    JsonSerializer.Serialize (evt, jsonOptions)
+
+let saveEvents (filePath: string) (events: Events list) : unit =
+    File.AppendAllLines(filePath, List.map serializeEvent events)
+
 // -----------
 // Application
 // -----------
@@ -95,7 +101,9 @@ let [<Literal>] EventsFile = "Events"
 
 let repository : Repository = {
     Load = fun () -> loadState StateFile
-    Save = fun state -> saveState StateFile state
+    Save = fun (state, events) -> 
+        saveState StateFile state
+        saveEvents EventsFile events
 }
 
 let turnOff () = execute repository TurnOff
