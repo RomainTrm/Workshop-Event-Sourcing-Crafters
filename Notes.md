@@ -50,3 +50,7 @@ Après un certain nombre de fois (par exemple 3) à avoir été allumée, l'ampo
 - On supprime la persistance du `State`
 
 **Note:** On peut décider de stopper notre migration à n'importe laquelle de ces étapes. Celles-ci sont toutes des candidates valides pour être déployés.
+
+## Questions pour Jérémie
+
+- Une façon particulière d'introduire l'initial state ? Souvenir d'un event dédié `Built`.
