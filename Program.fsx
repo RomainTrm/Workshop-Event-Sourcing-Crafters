@@ -37,15 +37,12 @@ let evolve (state: State) (event: Events) : State =
     | _, Broke -> Broken
     | _ -> state
 
-let decide (state: State) (cmd: Commands) : State = 
-    let events =
-        match cmd, state with
-        | TurnOn, Working (Off, 0) -> [Broke]
-        | TurnOn, Working (Off, _) -> [TurnedOn]
-        | TurnOff, Working (On, _) -> [TurnedOff]
-        | _ -> []
-    
-    List.fold evolve state events
+let decide (state: State) (cmd: Commands) : Events list = 
+    match cmd, state with
+    | TurnOn, Working (Off, 0) -> [Broke]
+    | TurnOn, Working (Off, _) -> [TurnedOn]
+    | TurnOff, Working (On, _) -> [TurnedOff]
+    | _ -> []
 
 // -------------------------
 // Domain (imperative shell)
@@ -58,7 +55,8 @@ type Repository = {
 
 let execute (repository: Repository) (cmd: Commands) : unit =
     let state = repository.Load () // Impure
-    let newState = decide state cmd // Pure
+    let events = decide state cmd // Pure
+    let newState = List.fold evolve state events // Pure
     repository.Save newState // Impure
 
 // --------------
