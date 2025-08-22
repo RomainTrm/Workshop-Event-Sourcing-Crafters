@@ -30,6 +30,8 @@ type Events =
     | TurnedOff
     | Broke
 
+let initialState : State = Working (Off, 3)
+
 let evolve (state: State) (event: Events) : State = 
     match state, event with
     | Working (_, remaining), TurnedOff -> Working (Off, remaining)
@@ -49,12 +51,13 @@ let decide (state: State) (cmd: Commands) : Events list =
 // -------------------------
 
 type Repository = {
-    Load: unit -> State
+    Load: unit -> Events list
     Save: State * Events list -> unit
 }
 
 let execute (repository: Repository) (cmd: Commands) : unit =
-    let state = repository.Load () // Impure
+    let history = repository.Load () // Impure
+    let state = List.fold evolve initialState history // Pure
     let events = decide state cmd // Pure
     let newState = List.fold evolve state events // Pure
     repository.Save (newState, events) // Impure
@@ -86,8 +89,16 @@ let loadState (filePath: string) : State =
 let saveState (filePath: string) (state: State) : unit =
     File.WriteAllText(filePath, serializeState state)
 
+let deserializeEvents (json: string) : Events =
+    JsonSerializer.Deserialize<Events> (json, jsonOptions)
+
 let serializeEvent (evt: Events) : string = 
     JsonSerializer.Serialize (evt, jsonOptions)
+
+let loadEvents (filePath: string) : Events list =
+    File.ReadAllLines filePath
+    |> Seq.map deserializeEvents
+    |> Seq.toList
 
 let saveEvents (filePath: string) (events: Events list) : unit =
     File.AppendAllLines(filePath, List.map serializeEvent events)
@@ -100,7 +111,7 @@ let [<Literal>] StateFile = "State"
 let [<Literal>] EventsFile = "Events"
 
 let repository : Repository = {
-    Load = fun () -> loadState StateFile
+    Load = fun () -> loadEvents EventsFile
     Save = fun (state, events) -> 
         saveState StateFile state
         saveEvents EventsFile events
