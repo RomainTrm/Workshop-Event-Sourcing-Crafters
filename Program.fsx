@@ -67,14 +67,15 @@ let bulbDecider : Decider<Commands, Events, State> = {
 
 type EventsStore<'Events> = {
     Load: unit -> 'Events list
-    Save: 'Events list -> unit
+    Save: Version -> 'Events list -> unit
 }
+and Version = int
 
 let execute (decider: Decider<'Commands, 'Events, 'State>) (eventsStore: EventsStore<'Events>) (cmd: 'Commands) : unit =
     let history = eventsStore.Load () // Impure
     let state = List.fold decider.Evolve decider.InitialState history // Pure
     let events = decider.Decide state cmd // Pure
-    eventsStore.Save events // Impure
+    eventsStore.Save (List.length history) events // Impure
 
 // --------------
 // Infrastructure 
@@ -114,8 +115,14 @@ let loadEvents<'Events> (filePath: string) : 'Events list =
     |> Seq.map deserializeEvents<'Events>
     |> Seq.toList
 
-let saveEvents<'Events> (filePath: string) (events: 'Events list) : unit =
-    File.AppendAllLines(filePath, List.map serializeEvent<'Events> events)
+let saveEvents<'Events> (filePath: string) (version: Version) (events: 'Events list) : unit =
+    let jsons = List.map serializeEvent<'Events> events
+
+    // Hypothèse : le code suivant s'exécute de façon atomique
+    let actualVersion = File.ReadAllLines filePath |> Seq.length
+    if actualVersion = version
+    then File.AppendAllLines(filePath, jsons)
+    else failwith "Invalid version"
 
 // -----------
 // Application
@@ -126,7 +133,7 @@ let [<Literal>] EventsFile = "Events"
 
 let eventsStore : EventsStore<'Events> = {
     Load = fun () -> loadEvents<'Events> EventsFile
-    Save = fun events -> saveEvents<'Events> EventsFile events
+    Save = fun version events -> saveEvents<'Events> EventsFile version events
 }
 
 let turnOff () = execute bulbDecider eventsStore TurnOff
