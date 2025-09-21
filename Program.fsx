@@ -12,6 +12,15 @@
 //
 // ---------------------------------------------------------------------
 
+// ------------------------
+// Domain DSL
+// ------------------------
+
+type Decider<'Commands, 'Events, 'State> = {
+    Evolve: 'State -> 'Events -> 'State
+    Decide: 'State -> 'Commands -> 'Events list
+    InitialState: 'State
+}
 
 // ------------------------
 // Domain (functional core)
@@ -46,6 +55,12 @@ let decide (state: State) (cmd: Commands) : Events list =
     | TurnOff, Working (On, _) -> [TurnedOff]
     | _ -> []
 
+let bulbDecider : Decider<Commands, Events, State> = {
+    Decide = decide
+    Evolve = evolve
+    InitialState = initialState
+}
+
 // -------------------------
 // Domain (imperative shell)
 // -------------------------
@@ -55,10 +70,10 @@ type EventsStore<'Events> = {
     Save: 'Events list -> unit
 }
 
-let execute (eventsStore: EventsStore<Events>) (cmd: Commands) : unit =
+let execute (decider: Decider<'Commands, 'Events, 'State>) (eventsStore: EventsStore<'Events>) (cmd: 'Commands) : unit =
     let history = eventsStore.Load () // Impure
-    let state = List.fold evolve initialState history // Pure
-    let events = decide state cmd // Pure
+    let state = List.fold decider.Evolve decider.InitialState history // Pure
+    let events = decider.Decide state cmd // Pure
     eventsStore.Save events // Impure
 
 // --------------
@@ -114,5 +129,5 @@ let eventsStore : EventsStore<'Events> = {
     Save = fun events -> saveEvents<'Events> EventsFile events
 }
 
-let turnOff () = execute eventsStore TurnOff
-let turnOn () = execute eventsStore TurnOn
+let turnOff () = execute bulbDecider eventsStore TurnOff
+let turnOn () = execute bulbDecider eventsStore TurnOn
