@@ -50,12 +50,12 @@ let decide (state: State) (cmd: Commands) : Events list =
 // Domain (imperative shell)
 // -------------------------
 
-type EventsStore = {
-    Load: unit -> Events list
-    Save: Events list -> unit
+type EventsStore<'Events> = {
+    Load: unit -> 'Events list
+    Save: 'Events list -> unit
 }
 
-let execute (eventsStore: EventsStore) (cmd: Commands) : unit =
+let execute (eventsStore: EventsStore<Events>) (cmd: Commands) : unit =
     let history = eventsStore.Load () // Impure
     let state = List.fold evolve initialState history // Pure
     let events = decide state cmd // Pure
@@ -88,19 +88,19 @@ let loadState (filePath: string) : State =
 let saveState (filePath: string) (state: State) : unit =
     File.WriteAllText(filePath, serializeState state)
 
-let deserializeEvents (json: string) : Events =
-    JsonSerializer.Deserialize<Events> (json, jsonOptions)
+let deserializeEvents<'Events> (json: string) : 'Events =
+    JsonSerializer.Deserialize<'Events> (json, jsonOptions)
 
-let serializeEvent (evt: Events) : string = 
+let serializeEvent<'Events> (evt: 'Events) : string = 
     JsonSerializer.Serialize (evt, jsonOptions)
 
-let loadEvents (filePath: string) : Events list =
+let loadEvents<'Events> (filePath: string) : 'Events list =
     File.ReadAllLines filePath
-    |> Seq.map deserializeEvents
+    |> Seq.map deserializeEvents<'Events>
     |> Seq.toList
 
-let saveEvents (filePath: string) (events: Events list) : unit =
-    File.AppendAllLines(filePath, List.map serializeEvent events)
+let saveEvents<'Events> (filePath: string) (events: 'Events list) : unit =
+    File.AppendAllLines(filePath, List.map serializeEvent<'Events> events)
 
 // -----------
 // Application
@@ -109,9 +109,9 @@ let saveEvents (filePath: string) (events: Events list) : unit =
 let [<Literal>] StateFile = "State"
 let [<Literal>] EventsFile = "Events"
 
-let eventsStore : EventsStore = {
-    Load = fun () -> loadEvents EventsFile
-    Save = fun events -> saveEvents EventsFile events
+let eventsStore : EventsStore<'Events> = {
+    Load = fun () -> loadEvents<'Events> EventsFile
+    Save = fun events -> saveEvents<'Events> EventsFile events
 }
 
 let turnOff () = execute eventsStore TurnOff
