@@ -81,9 +81,9 @@ let rec execute (decider: Decider<'Commands, 'Events, 'State>) (eventsStore: Eve
     | Error InvalidVersionError -> execute decider eventsStore cmd
     | Error error -> failwith error
 
-// --------------
-// Infrastructure 
-// --------------
+// -------------------------
+// Infrastructure (commands)
+// -------------------------
 
 #r "nuget: FSharp.SystemTextJson,1.4.36"
 
@@ -92,21 +92,6 @@ open System.Text.Json
 open System.Text.Json.Serialization
 
 let jsonOptions = JsonFSharpOptions.Default().ToJsonSerializerOptions()
-
-let deserializeState (json: string) : State = 
-    match json with
-    | "" -> Working (Off, 3)
-    | json -> JsonSerializer.Deserialize<State> (json, jsonOptions)
-
-let serializeState (state: State) : string = 
-    JsonSerializer.Serialize (state, jsonOptions)
-
-let loadState (filePath: string) : State = 
-    File.ReadAllText filePath
-    |> deserializeState
-
-let saveState (filePath: string) (state: State) : unit =
-    File.WriteAllText(filePath, serializeState state)
 
 let deserializeEvents<'Events> (json: string) : 'Events =
     JsonSerializer.Deserialize<'Events> (json, jsonOptions)
@@ -128,16 +113,46 @@ let saveEvents<'Events> (filePath: string) (version: Version) (events: 'Events l
     then Ok (File.AppendAllLines(filePath, jsons))
     else Error InvalidVersionError
 
+// ------------------------
+// Infrastructure (queries)
+// ------------------------
+
+let deserializeState (json: string) : State = 
+    match json with
+    | "" -> Working (Off, 3)
+    | json -> JsonSerializer.Deserialize<State> (json, jsonOptions)
+
+let serializeState (state: State) : string = 
+    JsonSerializer.Serialize (state, jsonOptions)
+
+let loadState (filePath: string) : State = 
+    File.ReadAllText filePath
+    |> deserializeState
+
+let saveState (filePath: string) (state: State) : unit =
+    File.WriteAllText(filePath, serializeState state)
+
+let [<Literal>] StateFile = "State"
+
+let handleEvent (evt: obj) : unit =
+    match evt with
+    | :? Events as bulbEvent -> 
+        let state = loadState StateFile
+        let newState = evolve state bulbEvent
+        saveState StateFile newState
+    | _ -> ()
+
 // -----------
 // Application
 // -----------
 
-let [<Literal>] StateFile = "State"
 let [<Literal>] EventsFile = "Events"
 
 let eventsStore : EventsStore<'Events> = {
     Load = fun () -> loadEvents<'Events> EventsFile
-    Save = fun version events -> saveEvents<'Events> EventsFile version events
+    Save = fun version events -> 
+        saveEvents<'Events> EventsFile version events
+        |> Result.map (fun () -> List.iter handleEvent events)
 }
 
 let turnOff () = execute bulbDecider eventsStore TurnOff
